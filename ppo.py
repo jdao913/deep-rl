@@ -18,6 +18,7 @@ import torch
 import numpy as np
 import os
 import time
+import functools
 
 #TODO: remove reliance on: Monitor, DummyVecEnv, VecNormalized
 # def make_env(env_id, seed, rank, log_dir):
@@ -53,19 +54,22 @@ args.batch_size = 128
 args.lr = 1e-4
 args.epochs = 3
 # args.epochs = 5
-args.num_steps = 12000
+args.num_steps = 3000
 args.seed = int(time.time())
 args.max_grad_norm = 0.05
 args.use_gae = False
 
-args.name = "regular_spring_speed_reward3"
+args.name = "parallel_test"
+args.num_procs = 4
+print("number of procs:", args.num_procs)
 
 if __name__ == "__main__":
     torch.set_num_threads(1) # see: https://github.com/pytorch/pytorch/issues/13757 
 
     #env_fn = make_env("Walker2d-v1", args.seed, 1337, "/tmp/gym/rl/")
 
-    env_fn = make_cassie_env("walking", clock_based=True)
+    # env_fn = make_cassie_env("walking", clock_based=True)
+    env_fn = functools.partial(CassieEnv, "walking", clock_based=True)
 
     # env_fn = CassieTSEnv
 
@@ -78,7 +82,7 @@ if __name__ == "__main__":
     # policy = GaussianMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
     
     # Load previous policy
-    policy = torch.load("./trained_models/regular_spring_speed_reward2.pt")
+    policy = torch.load("./trained_models/regular_spring_speed_reward3.pt")
 
     #policy = BetaMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
 

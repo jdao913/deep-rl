@@ -11,19 +11,22 @@ import random
 #import pickle
 
 class CassieEnv:
-    def __init__(self, traj, simrate=60, clock_based=False):
+    def __init__(self, traj, simrate=60, clock_based=False, state_est=False):
         self.sim = CassieSim("./cassie/cassiemujoco/cassie.xml")
         self.vis = None
 
         self.clock_based = clock_based
+        self.state_est = state_est
 
         if clock_based:
             self.observation_space = np.zeros(42)
-            # self.observation_space = np.zeros(48)       # Size for use with state est
+            if self.state_est:
+                self.observation_space = np.zeros(48)       # Size for use with state est
             self.action_space      = np.zeros(10)
         else:
             self.observation_space = np.zeros(80)
-            # self.observation_space = np.zeros(86)       # Size for use with state est
+            if self.state_est:
+                self.observation_space = np.zeros(86)       # Size for use with state est
             self.action_space      = np.zeros(10)
 
         dirname = os.path.dirname(__file__)
@@ -134,7 +137,7 @@ class CassieEnv:
             self.counter += 1
 
         # Early termination
-        done = not(height > 0.4 and height < 3.0)
+        done = not(height > 0.3 and height < 3.0)
 
         reward = self.compute_reward()
 
@@ -264,10 +267,10 @@ class CassieEnv:
 
             spring_error += 1000 * (target - actual) ** 2      
         
-        # reward = 0.5 * np.exp(-joint_error) +       \
-        #          0.3 * np.exp(-com_error) +         \
-        #          0.1 * np.exp(-orientation_error) + \
-        #          0.1 * np.exp(-spring_error)
+        reward = 0.5 * np.exp(-joint_error) +       \
+                 0.3 * np.exp(-com_error) +         \
+                 0.1 * np.exp(-orientation_error) + \
+                 0.1 * np.exp(-spring_error)
 
         # orientation error does not look informative
         # maybe because it's comparing euclidean distance on quaternions
@@ -280,7 +283,7 @@ class CassieEnv:
         #         )
         #     )  
 
-        reward = np.sign(qvel[0])*qvel[0]**2
+        # reward = np.sign(qvel[0])*qvel[0]**2
 
         return reward
 
@@ -406,10 +409,11 @@ class CassieEnv:
             self.cassie_state.joint.velocity[:]                                      # unactuated joint velocities
         ])
 
-        # return np.concatenate([robot_state,  
-        #                        ext_state])
-
-        return np.concatenate([qpos[pos_index], 
+        if self.state_est:
+            return np.concatenate([robot_state,  
+                               ext_state])
+        else:
+            return np.concatenate([qpos[pos_index], 
                                qvel[vel_index], 
                                ext_state])
 
