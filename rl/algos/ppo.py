@@ -113,6 +113,9 @@ class PPO:
         self.name = args['name']
         self.use_gae = args['use_gae']
 
+        self.grad_clip = args['max_grad_norm']
+        self.max_return = 0
+
     @staticmethod
     def add_arguments(parser):
         parser.add_argument("--n_itr", type=int, default=10000,
@@ -206,7 +209,7 @@ class PPO:
               n_itr,
               normalize=None,
               logger=None):
-
+        start_t = time.process_time()
         policy.train()
 
         env = Vectorize([env_fn]) # this will be useful for parallelism later
@@ -278,6 +281,10 @@ class PPO:
 
                     optimizer.zero_grad()
                     (actor_loss + critic_loss + entropy_penalty).backward()
+
+                    # Clip the gradient norm to prevent "unlucky" minibatches from 
+                    # causing pathalogical updates
+                    torch.nn.utils.clip_grad_norm_(policy.parameters(), self.grad_clip)
                     optimizer.step()
 
                     losses.append([actor_loss.item(),
@@ -331,8 +338,12 @@ class PPO:
                 logger.dump()
 
             # TODO: add option for how often to save model
-            if itr % 10 == 0:
+            # if itr % 1 == 0:
+            if np.mean(test.ep_returns) > self.max_return:
+                self.max_return = np.mean(test.ep_returns)
                 self.save(policy, env)
+            
+            print("Total time:", time.process_time() - start_t)
 
 
 
