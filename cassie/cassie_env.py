@@ -77,7 +77,7 @@ class CassieEnv:
         
         target = action + ref_pos[self.pos_idx]
 
-        h = 0.0001
+        h = 0.0005
         Tf = 1.0 / 300.0
         alpha = h / (Tf + h)
         real_action = (1-alpha)*self.prev_action + alpha*target
@@ -91,7 +91,7 @@ class CassieEnv:
         #         target[i] = self.prev_action[i] + max_diff[i]
 
         self.prev_action = real_action
-        real_action = target
+        # real_action = target
         
         # target = action + ref_pos[self.pos_idx]
         
@@ -137,7 +137,7 @@ class CassieEnv:
             self.counter += 1
 
         # Early termination
-        done = not(height > 0.3 and height < 3.0)
+        done = not(height > 0.4 and height < 3.0)
 
         reward = self.compute_reward()
 
@@ -283,7 +283,11 @@ class CassieEnv:
         #         )
         #     )  
 
-        # reward = np.sign(qvel[0])*qvel[0]**2
+        # foot_forces = self.sim.get_foot_forces()
+        # foot_penalty = 0
+        # if (foot_forces != 0).all():
+        #     foot_penalty = -2
+        # reward = np.sign(qvel[0])*qvel[0]**2 + foot_penalty#+ qpos[2]
 
         return reward
 

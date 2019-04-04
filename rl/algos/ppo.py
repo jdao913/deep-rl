@@ -379,7 +379,7 @@ class PPO:
                     break
 
             if logger is not None:
-                test = self.sample(env, policy, 800, 400, deterministic=True)
+                test = self.sample(env, policy, 800 // self.n_proc, 400, deterministic=True)
                 _, pdf     = policy.evaluate(observations)
                 _, old_pdf = old_policy.evaluate(observations)
 

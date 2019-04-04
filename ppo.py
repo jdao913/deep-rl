@@ -59,7 +59,7 @@ args.seed = int(time.time())
 args.max_grad_norm = 0.05
 args.use_gae = False
 
-args.name = "parallel_test"
+args.name = "stiff_StateEst_step"
 args.num_procs = 4
 print("number of procs:", args.num_procs)
 
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     #env_fn = make_env("Walker2d-v1", args.seed, 1337, "/tmp/gym/rl/")
 
     # env_fn = make_cassie_env("walking", clock_based=True)
-    env_fn = functools.partial(CassieEnv, "walking", clock_based=True)
+    env_fn = functools.partial(CassieEnv, "stepping", clock_based=True, state_est=True)
 
     # env_fn = CassieTSEnv
 
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     # policy = GaussianMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
     
     # Load previous policy
-    policy = torch.load("./trained_models/regular_spring_speed_reward3.pt")
+    policy = torch.load("./trained_models/stiff_spring_StateEst_step.pt")
 
     #policy = BetaMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
 
