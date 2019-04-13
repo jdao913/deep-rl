@@ -8,7 +8,19 @@ import numpy as np
 import os
 import random
 
-#import pickle
+import pickle
+
+class CassieIKTrajectory:
+    def __init__(self, filepath):
+        with open(filepath, "rb") as f:
+            trajectory = pickle.load(f)
+
+        self.qpos = np.copy(trajectory["qpos"])
+        self.qvel = np.copy(trajectory["qvel"])
+        #self.foot =
+    
+    def __len__(self):
+        return len(self.qpos)
 
 class CassieEnv:
     def __init__(self, traj, simrate=60, clock_based=False, state_est=False):
@@ -22,20 +34,21 @@ class CassieEnv:
             self.observation_space = np.zeros(42)
             if self.state_est:
                 self.observation_space = np.zeros(48)       # Size for use with state est
-            self.action_space      = np.zeros(10)
         else:
             self.observation_space = np.zeros(80)
             if self.state_est:
                 self.observation_space = np.zeros(86)       # Size for use with state est
-            self.action_space      = np.zeros(10)
+        self.action_space      = np.zeros(10)
 
         dirname = os.path.dirname(__file__)
         if traj == "walking":
             traj_path = os.path.join(dirname, "trajectory", "stepdata.bin")
 
         elif traj == "stepping":
+            # traj_path = os.path.join(dirname, "trajectory", "spline_stepping_traj.pkl")
             traj_path = os.path.join(dirname, "trajectory", "more-poses-trial.bin")
 
+        # self.trajectory = CassieIKTrajectory(traj_path)
         self.trajectory = CassieTrajectory(traj_path)
 
         self.P = np.array([100,  100,  88,  96,  50]) 
@@ -68,12 +81,13 @@ class CassieEnv:
         # maybe make ref traj only send relevant idxs?
         ref_pos, ref_vel = self.get_ref_state(self.phase)
         self.prev_action = ref_pos[self.pos_idx]
+        self.phase_add = 1
     
 
     def step_simulation(self, action):
 
         # maybe make ref traj only send relevant idxs?
-        ref_pos, ref_vel = self.get_ref_state(self.phase + 1)
+        ref_pos, ref_vel = self.get_ref_state(self.phase + self.phase_add)
         
         target = action + ref_pos[self.pos_idx]
 
@@ -130,14 +144,14 @@ class CassieEnv:
         height = self.sim.qpos()[2]
 
         self.time  += 1
-        self.phase += 1
+        self.phase += self.phase_add
 
         if self.phase > self.phaselen:
             self.phase = 0
             self.counter += 1
 
         # Early termination
-        done = not(height > 0.3 and height < 3.0)
+        done = not(height > 0.4 and height < 3.0)
 
         reward = self.compute_reward()
 
@@ -284,6 +298,11 @@ class CassieEnv:
         #     )  
 
         # reward = np.sign(qvel[0])*qvel[0]**2
+        # desired_speed = 3.0
+        # speed_diff = np.abs(qvel[0] - desired_speed)
+        # if speed_diff > 1:
+        #     speed_diff = speed_diff**2
+        # reward = 20 - speed_diff
 
         return reward
 
@@ -322,7 +341,7 @@ class CassieEnv:
         qpos = np.copy(self.sim.qpos())
         qvel = np.copy(self.sim.qvel()) 
 
-        ref_pos, ref_vel = self.get_ref_state(self.phase + 1)
+        ref_pos, ref_vel = self.get_ref_state(self.phase + self.phase_add)
 
         # TODO: maybe convert to set subtraction for clarity
         # {i for i in range(35)} - 
