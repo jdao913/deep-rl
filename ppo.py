@@ -11,6 +11,8 @@ from rl.envs.normalize import PreNormalizer
 
 # NOTE: importing cassie for some reason breaks openai gym, BUG ?
 from cassie import CassieEnv, CassieTSEnv
+from cassie.no_delta_env import CassieEnv_nodelta
+from cassie.speed_env import CassieEnv_speed
 
 #import gym
 import torch
@@ -59,7 +61,7 @@ args.seed = int(time.time())
 args.max_grad_norm = 0.05
 args.use_gae = False
 
-args.name = "parallel_test"
+args.name = "regular_speed_input"
 args.num_procs = 4
 print("number of procs:", args.num_procs)
 
@@ -69,7 +71,8 @@ if __name__ == "__main__":
     #env_fn = make_env("Walker2d-v1", args.seed, 1337, "/tmp/gym/rl/")
 
     # env_fn = make_cassie_env("walking", clock_based=True)
-    env_fn = functools.partial(CassieEnv, "walking", clock_based=True)
+    env_fn = functools.partial(CassieEnv_speed, "walking", clock_based=True, state_est=False)
+    # env_fn = functools.partial(CassieEnv_nodelta, "walking", clock_based=True, state_est=False)
 
     # env_fn = CassieTSEnv
 
@@ -79,10 +82,10 @@ if __name__ == "__main__":
     obs_dim = env_fn().observation_space.shape[0] # TODO: could make obs and ac space static properties
     action_dim = env_fn().action_space.shape[0]
 
-    # policy = GaussianMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
+    policy = GaussianMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
     
     # Load previous policy
-    policy = torch.load("./trained_models/regular_spring_speed_reward3.pt")
+    # policy = torch.load("./trained_models/no_clock.pt")
 
     #policy = BetaMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
 
