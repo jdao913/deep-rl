@@ -91,7 +91,7 @@ class CassieEnv:
         
         target = action + ref_pos[self.pos_idx]
 
-        h = 0.0001
+        h = 0.0005
         Tf = 1.0 / 300.0
         alpha = h / (Tf + h)
         real_action = (1-alpha)*self.prev_action + alpha*target
@@ -105,7 +105,7 @@ class CassieEnv:
         #         target[i] = self.prev_action[i] + max_diff[i]
 
         self.prev_action = real_action
-        real_action = target
+        # real_action = target
         
         # target = action + ref_pos[self.pos_idx]
         
