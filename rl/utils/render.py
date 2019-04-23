@@ -7,15 +7,21 @@ def renderpolicy(env, policy, deterministic=False, speedup=1, dt=0.05):
     state = torch.Tensor(env.reset_for_test())
     render_state = env.render()
     print("render_state:", render_state)
+    env.speed = 2
+    env.phase_add = 2
     while render_state:
         if (not env.vis.ispaused()):
-            _, action = policy.act(state, deterministic)
-            # print("action: ", action.data.numpy())
+            # _, action = policy.act(state, deterministic)
+            # action = action.data[0].numpy()
+            
+            _, action = policy.evaluate(state)
+            action = action.mean.data[0].numpy()
+            
+            state, reward, done, _ = env.step(action)
+            # print("speed: ", env.sim.qvel()[0])
 
-            state, reward, done, _ = env.step(action.data[0].numpy())
-
-            if done:
-                state = env.reset()
+            # if done:
+                # state = env.reset()
 
             state = torch.Tensor(state)
 

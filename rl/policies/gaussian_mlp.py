@@ -24,8 +24,8 @@ class GaussianMLP(FFPolicy):
                  init_std=1, 
                  learn_std=True, 
                  nonlinearity="tanh", 
-                 bounded=False,
-                 normc_init=True,
+                 #bounded=False,
+                 normc_init=False,
                  obs_std=None,
                  obs_mean=None):
         super(GaussianMLP, self).__init__()
@@ -68,7 +68,7 @@ class GaussianMLP(FFPolicy):
         # weight initialization scheme used in PPO paper experiments
         self.normc_init = normc_init
 
-        self.bounded = bounded
+        # self.bounded = bounded
 
         self.init_parameters()
         self.train()
@@ -95,9 +95,9 @@ class GaussianMLP(FFPolicy):
             x = self.nonlinearity(l(x))
         x = self.mean(x)
 
-        if self.bounded:
-            mean = torch.tanh(x) 
-        else:
-            mean = x
+        # if self.bounded:
+            # mean = torch.tanh(x) 
+        # else:
+        mean = x
 
         return value, mean
