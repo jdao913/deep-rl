@@ -55,7 +55,7 @@ This file structure makes it easy to compare models generated using the same hyp
 ### With Vizdom
 I've deprecated the bokeh monitor. Info on monitoring with vizdom coming soon. TODO: make a plotting config file format (e.g. use timesteps vs iterations on the x axis, use a fixed vs variable x axis, choose what kind of filtering to do).
 
-Run ```$ python -m visdom.server``` then navigate to ```http://localhost:8097/```` in your browser
+Run ```$ python -m visdom.server``` then navigate to ```http://localhost:8097/``` in your browser
 
 Requires matplotlib >= 2.0
 
@@ -63,16 +63,11 @@ Requires matplotlib >= 2.0
 You can run the unit tests using pytest.
 
 ### To Do
-- [ ] Save models
-- [ ] Package everything
 - [ ] Sphinx documentation and github wiki
 - [ ] Make logger as robust and pythonic as possible
 - [ ] Fix some hacks having to do with support for parallelism 
 (namely Vectorize, Normalize and Monitor)
 - [ ] ADD PARALLELISM/DISTRIBUTED IMPLEMENTATIONS
-- [ ] Add kl divergence, entropy, etc to logging
-- [ ] pure matlab logger
-- [ ] fix minor plotting bug from doing running average
 
 ### Notes
 
@@ -88,9 +83,11 @@ examples from root directory.
 
 #### To be implemented soon:
 
-* Some form of massively parallel Evolutionary Algorithm as a baseline
+* TD3
+* Some form of massively parallel Evolutionary Algorithm as a baseline (CMAES, ARS)
+* [TRPO](https://arxiv.org/abs/1502.05477)
 * [A2C](https://arxiv.org/abs/1602.01783) 
-* Parallelism
+* ~~Parallelism~~
 * ~~[Beta distribution policy](http://proceedings.mlr.press/v70/chou17a/chou17a.pdf)~~
 * [Parameter noise exploration](https://arxiv.org/abs/1706.01905) (maybe)
 
@@ -109,7 +106,6 @@ examples from root directory.
 
 #### Maybe implemented in future:
 
-* [TRPO](https://arxiv.org/abs/1502.05477)
 * [DXNN](https://arxiv.org/abs/1008.2412)
 * [ACER](https://arxiv.org/abs/1611.01224) and other off-policy methods
 * Model-based methods
