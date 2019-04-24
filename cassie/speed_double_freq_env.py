@@ -82,6 +82,7 @@ class CassieEnv_speed_dfreq:
         ref_pos, ref_vel = self.get_ref_state(self.phase)
         self.prev_action = ref_pos[self.pos_idx]
         self.phase_add = 2
+        self.clock_inds = [40, 41]
     
 
     def step_simulation(self, action):
@@ -441,6 +442,23 @@ class CassieEnv_speed_dfreq:
             return np.concatenate([qpos[pos_index], 
                                qvel[vel_index], 
                                ext_state])
+
+    def set_state(self, obs, iters=1000):
+        pos_index = np.array([1,2,3,4,5,6,7,8,9,14,15,16,20,21,22,23,28,29,30,34])
+        vel_index = np.array([0,1,2,3,4,5,6,7,8,12,13,14,18,19,20,21,25,26,27,31])
+
+        for _ in range(iters):
+            qpos = np.copy(self.sim.qpos())
+            qvel = np.copy(self.sim.qvel())
+
+            qpos[pos_index] = obs[0:20]
+            qvel[vel_index] = obs[20:40]
+
+            self.sim.set_qpos(qpos)
+            self.sim.set_qvel(0 * qvel)
+
+            self.sim.step_pd(pd_in_t())
+
 
     def render(self):
         if self.vis is None:

@@ -30,7 +30,7 @@ action_dim = cassie_env.action_space.shape[0]
 # policy = torch.load("./trained_models/stiff_spring.pt")
 # policy2 = GaussianMLP(obs_dim, action_dim, nonlinearity="tanh", init_std=np.exp(-1), learn_std=False)
 # policy2 = ""
-policy = torch.load("./trained_models/speed_input_double_freq_max_speed_orient.pt")
+policy = torch.load("./trained_models/dfreq_max_speed_orient_new.pt")
 policy.eval()
 renderpolicy(cassie_env, policy, deterministic=False, dt=0.05, speedup = 1)
 

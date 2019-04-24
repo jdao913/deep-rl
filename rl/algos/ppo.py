@@ -227,6 +227,8 @@ class PPO:
             result = [worker._function(*args)]
 
         # O(n)
+        print("n_proc: ", self.n_proc)
+        print("length of result: ", len(result))
         def merge(buffers):
             merged = PPOBuffer(self.gamma, self.lam)
             for buf in buffers:
