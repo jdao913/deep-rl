@@ -34,4 +34,5 @@ def run_experiment(algo, policy, env_fn, args, normalizer=None, log=True, monito
         render_p.join()
     
     else:
+        print("logger: ", logger)
         algo.train(env_fn, policy, args.n_itr, normalizer, logger=logger)

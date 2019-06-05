@@ -109,6 +109,7 @@ class PPO:
         self.minibatch_size    = args['minibatch_size']
         self.epochs        = args['epochs']
         self.num_steps     = args['num_steps']
+        self.max_traj_len  = args['max_traj_len']
 
         self.name = args['name']
         self.use_gae = args['use_gae']
@@ -158,6 +159,9 @@ class PPO:
         parser.add_argument("--max_grad_norm", type=float, default=0.5,
                             help="Value to clip gradients at.")
 
+        parser.add_argument("--max_traj_len", type=int, default=300,
+                            help="Max episode horizon")
+
     def save(self, policy, env):
         save_path = os.path.join("./trained_models", "ppo")
 
@@ -174,6 +178,9 @@ class PPO:
             policy.obs_std = torch.Tensor(std)
 
         torch.save(policy, os.path.join("./trained_models", self.name + filetype))
+
+    def save_optim(self, optimizer):
+        torch.save(optimizer.state_dict(), os.path.join("./trained_models", self.name + "_optim.pt"))
 
     @torch.no_grad()
     def sample(self, env, policy, min_steps, max_traj_len, deterministic=False):
@@ -276,7 +283,10 @@ class PPO:
               normalize=None,
               logger=None):
 
-        policy.train()
+        if normalize != None:
+            policy.train()
+        else:
+            policy.train(0)
 
         env = Vectorize([env_fn]) # this will be useful for parallelism later
         
@@ -399,6 +409,7 @@ class PPO:
             if np.mean(test.ep_returns) > self.max_return:
                 self.max_return = np.mean(test.ep_returns)
                 self.save(policy, env)
+                self.save_optim(optimizer)
 
             print("Total time: {:.2f} s".format(time.time() - start_time))
 

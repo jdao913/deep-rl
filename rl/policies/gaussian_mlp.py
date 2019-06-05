@@ -92,6 +92,6 @@ class GaussianMLP(FFPolicy):
             x = self.nonlinearity(l(x))
         x = self.mean(x)
 
-        mean = torch.tanh(x) # NOTE: not sure what this is for, but Xie et al does it?
+        mean = x#torch.tanh(x) # NOTE: not sure what this is for, but Xie et al does it?
 
         return value, mean

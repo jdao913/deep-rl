@@ -1,9 +1,13 @@
-from rl.utils import renderpolicy, rendermultipolicy
+from rl.utils import renderpolicy, rendermultipolicy, renderpolicy_speedinput, rendermultipolicy_speedinput
 from cassie import CassieEnv
 from rl.policies import GaussianMLP, BetaMLP
 from cassie.slipik_env import CassieIKEnv
 from cassie.no_delta_env import CassieEnv_nodelta
 from cassie.speed_env import CassieEnv_speed
+from cassie.speed_double_freq_env import CassieEnv_speed_dfreq
+from cassie.speed_no_delta_env import CassieEnv_speed_no_delta
+from cassie.speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neutral_foot
+from cassie.standing_env import CassieEnv_stand
 
 import torch
 
@@ -11,9 +15,14 @@ import numpy as np
 import os
 import time
 
-# cassie_env = CassieEnv("walking", clock_based=True, state_est=False)
+# cassie_env = CassieEnv("walking", clock_based=True, state_est=True)
 # cassie_env = CassieEnv_nodelta("walking", clock_based=True, state_est=False)
-cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=False)
+# cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_speed_dfreq("walking", clock_based=True, state_est=False)
+# cassie_env = CassieEnv_speed_no_delta("walking", clock_based=True, state_est=False)
+cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_stand(state_est=False)
+
 # env = cassieRLEnvMirror()
 # env.phase = 0
 # env.counter = 0
@@ -24,11 +33,20 @@ obs_dim = cassie_env.observation_space.shape[0] # TODO: could make obs and ac sp
 action_dim = cassie_env.action_space.shape[0]
 
 # policy = torch.load("./trained_models/stiff_spring.pt")
-# policy2 = GaussianMLP(obs_dim, action_dim, nonlinearity="tanh", init_std=np.exp(-1), learn_std=False)
-# policy2 = ""
-policy = torch.load("./trained_models/regular_speed_input.pt")
+# policies = []
+# policy = torch.load("./trained_models/stiff_StateEst_step.pt")
+# policy.eval()
+# policies.append(policy)
+# for i in [1, 2, 3, 5]:
+#     policy = torch.load("./trained_models/stiff_StateEst_speed{}.pt".format(i))
+#     policy.eval()
+#     policies.append(policy)
+# rendermultipolicy(cassie_env, policies, deterministic=True, dt=0.05, speedup = 1)
+# torch.nn.Module.dump_patches = True
+print("phaselen: ", cassie_env.phaselen)
+policy = torch.load("./trained_models/nodelta_neutral_StateEst_symmetry_speed0-2_freq1-15.pt")
 policy.eval()
-renderpolicy(cassie_env, policy, deterministic=False, dt=0.05, speedup = 1)
+renderpolicy_speedinput(cassie_env, policy, deterministic=True, dt=0.05, speedup = 3)
 
 # model = ActorCriticNet(num_inputs, num_outputs, [256, 256])
 # model.load_state_dict(torch.load("torch_model/SupervisedMultiDirectionMar6.pt"))

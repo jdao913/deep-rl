@@ -8,6 +8,9 @@ from rl.utils import renderpolicy
 from cassie import CassieEnv
 from cassie.no_delta_env import CassieEnv_nodelta
 from cassie.speed_env import CassieEnv_speed
+from cassie.speed_double_freq_env import CassieEnv_speed_dfreq
+from cassie.speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neutral_foot
+from cassie.standing_env import CassieEnv_stand
 
 from rl.policies import GaussianMLP
 
@@ -20,16 +23,21 @@ def avg_pols(policies, state):
 
 # Load environment and policy
 # cassie_env = CassieEnv("walking", clock_based=True, state_est=False)
-cassie_env = CassieEnv_nodelta("walking", clock_based=True, state_est=False)
-# cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=False)
+# cassie_env = CassieEnv_nodelta("walking", clock_based=True, state_est=False)
+# cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_speed_dfreq("walking", clock_based=True, state_est=False)
+cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_stand(state_est=False)
 
 obs_dim = cassie_env.observation_space.shape[0] # TODO: could make obs and ac space static properties
 action_dim = cassie_env.action_space.shape[0]
 
 do_multi = False
+no_delta = True
+offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -1.1997, -1.5968])
 
-file_prefix = "no_clock_05"
-policy = torch.load("./trained_models/no_clock_py36.pt")
+file_prefix = "nodelta_neutral_StateEst_freq1_symmetry_forward_speedmatch_randfreq1-2"
+policy = torch.load("./trained_models/nodelta_neutral_StateEst_freq1_symmetry_forward_speedmatch_randfreq1-2.pt")
 policy.eval()
 
 policies = []
@@ -41,15 +49,15 @@ if do_multi:
     # policy = torch.load("./trained_models/Normal.pt")
     # policy.eval()
     # policies.append(policy)
-    policy = torch.load("./trained_models/stiff_StateEst_step.pt")
-    policy.eval()
-    policies.append(policy)
-    for i in range(2, 5):
-        policy = torch.load("./trained_models/stiff_StateEst_step{}.pt".format(i))
+    # policy = torch.load("./trained_models/stiff_StateEst_step.pt")
+    # policy.eval()
+    # policies.append(policy)
+    for i in [1, 2, 3, 5]:
+        policy = torch.load("./trained_models/stiff_StateEst_speed{}.pt".format(i))
         policy.eval()
         policies.append(policy)
 
-num_steps = 50
+num_steps = 150
 pre_steps = 0
 torques = np.zeros((num_steps*60, 10))
 GRFs = np.zeros((num_steps*60, 2))
@@ -57,33 +65,40 @@ targets = np.zeros((num_steps*60, 10))
 heights = np.zeros(num_steps*60)
 speeds = np.zeros(num_steps*60)
 foot_pos = np.zeros((num_steps*60, 2))
+actions = np.zeros((num_steps*60, 10))
 # Execute policy and save torques
 with torch.no_grad():
     state = torch.Tensor(cassie_env.reset_for_test())
+    cassie_env.speed = .3
+    cassie_env.phase_add = 2
     for i in range(pre_steps):
         if not do_multi:
-            _, action = policy.act(state, False)
-            state, reward, done, _ = cassie_env.step(action.data[0].numpy())
+            _, action = policy.act(state, True)
+            state, reward, done, _ = cassie_env.step(action.data.numpy())
         else:
             action = avg_pols(policies, state)
             state, reward, done, _ = cassie_env.step(action)
         state = torch.Tensor(state)
     for i in range(num_steps):
         if not do_multi:
-            _, action = policy.act(state, False)
-            action = action.data[0].numpy()
+            _, action = policy.act(state, True)
+            action = action.data.numpy()
         else:
             action = avg_pols(policies, state)
             # state, reward, done, _ = cassie_env.step(action)
         # targets[i, :] = action
         for j in range(60):
-            ref_pos, ref_vel = cassie_env.get_ref_state(cassie_env.phase + 1)
-            target = action + ref_pos[cassie_env.pos_idx]
+            if no_delta:
+                target = action + offset
+            else:
+                ref_pos, ref_vel = cassie_env.get_ref_state(cassie_env.phase + cassie_env.phase_add)
+                target = action + ref_pos[cassie_env.pos_idx]
             h = 0.0001
             Tf = 1.0 / 300.0
             alpha = h / (Tf + h)
-            real_action = (1-alpha)*cassie_env.prev_action + alpha*target            
-            targets[i*60+j, :] = target#real_action
+            # real_action = (1-alpha)*cassie_env.prev_action + alpha*target            
+            targets[i*60+j, :] = target
+            actions[i*60+j, :] = action
             # print(target)
 
             cassie_env.step_simulation(action)
@@ -151,6 +166,22 @@ for i in range(5):
 
 plt.tight_layout()
 plt.savefig("./plots/"+file_prefix+"_targets.png")
+
+# Graph action data
+fig, ax = plt.subplots(2, 5, figsize=(15, 5))
+t = np.linspace(0, num_steps-1, num_steps*60)
+titles = ["Hip Roll", "Hip Yaw", "Hip Pitch", "Knee", "Foot"]
+ax[0][0].set_ylabel("Action")
+ax[1][0].set_ylabel("Action")
+for i in range(5):
+    ax[0][i].plot(t, actions[:, i])
+    ax[0][i].set_title("Left " + titles[i])
+    ax[1][i].plot(t, actions[:, i+5])
+    ax[1][i].set_title("Right " + titles[i])
+    ax[1][i].set_xlabel("Timesteps (0.0005 sec)")
+
+plt.tight_layout()
+plt.savefig("./plots/"+file_prefix+"_actions.png")
 
 # Graph state data
 fig, ax = plt.subplots(2, 2, figsize=(10, 5))
