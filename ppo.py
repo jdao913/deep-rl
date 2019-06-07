@@ -5,7 +5,7 @@ import argparse
 
 from rl.utils import run_experiment
 from rl.policies import GaussianMLP, BetaMLP
-from rl.algos import PPO, MirrorPPO, PPO_ADAM_adapt
+from rl.algos import PPO, MirrorPPO, PPO_ADAM_adapt, Mirror_PPO_ADAM_adapt
 
 from rl.envs.normalize import PreNormalizer
 from rl.envs.wrappers import SymmetricEnv
@@ -114,7 +114,8 @@ if __name__ == "__main__":
 
     # algo = PPO(args=vars(args))
     # algo = MirrorPPO(args=vars(args))
-    algo = PPO_ADAM_adapt(args=vars(args))
+    # algo = PPO_ADAM_adapt(args=vars(args))
+    algo = Mirror_PPO_ADAM_adapt(args=vars(args))
     #with torch.autograd.detect_anomaly():
     # TODO: make log, monitor and render command line arguments
     # TODO: make algos take in a dictionary or list of quantities to log (e.g. reward, entropy, kl div etc)

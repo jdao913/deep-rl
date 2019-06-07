@@ -76,7 +76,7 @@ class Mirror_PPO_ADAM_adapt(PPO):
             env = env_fn()
             mirror_observation = env.mirror_observation
             if env.clock_based:
-                mirror_observation = env.mirror_clock_observation
+              mirror_observation = env.mirror_clock_observation
             mirror_action = env.mirror_action
 
             for _ in range(self.epochs):
