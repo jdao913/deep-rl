@@ -61,13 +61,11 @@ class SymmetricEnv:
         mirror_obs = obs @ self.obs_mirror_matrix
         if len(mirror_obs.size()) == 1:
             clock = mirror_obs[self.clock_inds]
-            # print("clock: ", clock)
             for i in range(len(clock)):
                 mirror_obs[clock_inds[i]] = np.sin(np.arcsin(clock[i]) + np.pi)
             return mirror_obs
         else:
             clock = mirror_obs[:, self.clock_inds]
-            print("clock: ", clock)
             for i in range(np.shape(clock)[1]):
                 mirror_obs[:, clock_inds[i]] = np.sin(np.arcsin(clock[:, i]) + np.pi)
             return mirror_obs
