@@ -61,12 +61,12 @@ args.lr = 1e-4
 args.epochs = 3
 # args.epochs = 5
 args.num_steps = 3000
-args.max_traj_len = 200
+args.max_traj_len = 300
 args.seed = int(time.time())
 args.max_grad_norm = 0.05
 args.use_gae = False
 
-args.name = "stand_height_pelvel"
+args.name = "nodelta_neutral_StateEst_symmetry"
 args.num_procs = 4
 print("number of procs:", args.num_procs)
 
@@ -79,14 +79,8 @@ if __name__ == "__main__":
     # env_fn = functools.partial(CassieEnv_speed, "walking", clock_based=True, state_est=True)
     # env_fn = functools.partial(CassieEnv_nodelta, "walking", clock_based=True, state_est=False)
     # env_fn = functools.partial(CassieEnv_speed_dfreq, "walking", clock_based=True, state_est=False)
-    # env_fn = functools.partial(CassieEnv_speed_no_delta_neutral_foot, "walking", clock_based=True, state_est=False)
-    env_fn = functools.partial(CassieEnv_stand, state_est=False)
-
-
-    # env_fn = CassieTSEnv
-
-    #env.seed(args.seed)
-    #torch.manual_seed(args.seed)
+    env_fn = functools.partial(CassieEnv_speed_no_delta_neutral_foot, "walking", clock_based=True, state_est=True)
+    # env_fn = functools.partial(CassieEnv_stand, state_est=False)
 
     obs_dim = env_fn().observation_space.shape[0] # TODO: could make obs and ac space static properties
     action_dim = env_fn().action_space.shape[0]
@@ -96,26 +90,26 @@ if __name__ == "__main__":
     #                                     -34, 35, 36, 37, 38, 39, -26, -27, 28, 29, 30, 31, 32, 40, 41, 42],
                                         #   mirrored_act = [-5, -6, 7, 8, 9, -0.1, -1, 2, 3, 4]
     # For use with StateEst
-    env_fn = functools.partial(SymmetricEnv, env_fn, mirrored_obs = [0, 1, 2, 3, 4, -10, -11, 12, 13, 14, 15, -5,
+    env_fn = functools.partial(SymmetricEnv, env_fn, mirrored_obs = [0, 1, 2, 3, 4, -10, -11, 12, 13, 14, -5,
                                         -6, 7, 8, 9, 15, 16, 17, 18, 19, 20, -26, -27, 28, 29, 30, -21, -22, 23, 24, 
                                         25, 31, 32, 33, 37, 38, 39, 34, 35, 36, 43, 44, 45, 40, 41, 42, 46, 47, 48],
                                         mirrored_act = [-5, -6, 7, 8, 9, -0.1, -1, 2, 3, 4])
 
+    # Make a new policy
     policy = GaussianMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
     
     # Load previous policy
-    # policy = torch.load("./trained_models/stand_height_push.pt")
+    # policy = torch.load("./trained_models/nodelta_neutral_StateEst_symmetry_speed0-3_freq1.pt")
     # policy.train(0)
 
-    #policy = BetaMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
 
     normalizer = PreNormalizer(iter=10000, noise_std=1, policy=policy, online=False)
     # normalizer = None
 
     # algo = PPO(args=vars(args))
-    # algo = MirrorPPO(args=vars(args))
+    algo = MirrorPPO(args=vars(args))
     # algo = PPO_ADAM_adapt(args=vars(args))
-    algo = Mirror_PPO_ADAM_adapt(args=vars(args))
+    # algo = Mirror_PPO_ADAM_adapt(args=vars(args))
     #with torch.autograd.detect_anomaly():
     # TODO: make log, monitor and render command line arguments
     # TODO: make algos take in a dictionary or list of quantities to log (e.g. reward, entropy, kl div etc)

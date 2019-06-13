@@ -24,20 +24,20 @@ def avg_pols(policies, state):
 # Load environment and policy
 # cassie_env = CassieEnv("walking", clock_based=True, state_est=False)
 # cassie_env = CassieEnv_nodelta("walking", clock_based=True, state_est=False)
-# cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=True)
+cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=True)
 # cassie_env = CassieEnv_speed_dfreq("walking", clock_based=True, state_est=False)
-cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
 # cassie_env = CassieEnv_stand(state_est=False)
 
 obs_dim = cassie_env.observation_space.shape[0] # TODO: could make obs and ac space static properties
 action_dim = cassie_env.action_space.shape[0]
 
-do_multi = False
-no_delta = True
+do_multi = True
+no_delta = False
 offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -1.1997, -1.5968])
 
-file_prefix = "nodelta_neutral_StateEst_freq1_symmetry_forward_speedmatch_randfreq1-2"
-policy = torch.load("./trained_models/nodelta_neutral_StateEst_freq1_symmetry_forward_speedmatch_randfreq1-2.pt")
+file_prefix = "stiff_StateEst_speed_ensemble"
+policy = torch.load("./trained_models/stiff_spring/stiff_StateEst_speed2.pt")
 policy.eval()
 
 policies = []
@@ -53,7 +53,7 @@ if do_multi:
     # policy.eval()
     # policies.append(policy)
     for i in [1, 2, 3, 5]:
-        policy = torch.load("./trained_models/stiff_StateEst_speed{}.pt".format(i))
+        policy = torch.load("./trained_models/stiff_spring/stiff_StateEst_speed{}.pt".format(i))
         policy.eval()
         policies.append(policy)
 
@@ -70,7 +70,7 @@ actions = np.zeros((num_steps*60, 10))
 with torch.no_grad():
     state = torch.Tensor(cassie_env.reset_for_test())
     cassie_env.speed = .3
-    cassie_env.phase_add = 2
+    cassie_env.phase_add = 1
     for i in range(pre_steps):
         if not do_multi:
             _, action = policy.act(state, True)

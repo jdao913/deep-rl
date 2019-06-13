@@ -155,6 +155,7 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
 
                 state, reward, done, _ = env.step(action)
                 # print("speed: ", env.sim.qvel()[0])
+                # print("desired speed: ", env.speed)
 
                 # if done:
                 #     state = env.reset()
@@ -169,8 +170,8 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
 @torch.no_grad()
 def rendermultipolicy_speedinput(env, policies, deterministic=False, speedup=1, dt=0.05):
     state = torch.Tensor(env.reset_for_test())
-    env.speed = .1
-    env.phase_add = 2
+    env.speed = 3
+    env.phase_add = 1
 
     render_state = env.render()
     old_settings = termios.tcgetattr(sys.stdin)
