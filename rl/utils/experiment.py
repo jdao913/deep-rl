@@ -6,12 +6,23 @@ import torch.multiprocessing as mp
 from .render import renderloop
 from .logging import Logger
 from rl.envs import Normalize, Vectorize
+from torch.utils.tensorboard import SummaryWriter
 
 
-def run_experiment(algo, policy, env_fn, args, normalizer=None, log=True, monitor=False, render=False):
-    logger = Logger(args, viz=monitor) if log else None
-
-
+def run_experiment(algo, policy, env_fn, args, normalizer=None, log=True, log_type="tensorboard", monitor=False, render=False):
+    if log:
+        if log_type == "Visdom":
+            logger = Logger(args, viz=monitor)
+        elif log_type == "tensorboard":
+            log_path = "./logs/"+args.name+"/"
+            logger = SummaryWriter(log_path, flush_secs=0.1)
+        else:
+            print("Error: Logger type unknown")
+            exit()
+    else:
+        logger = None
+    print("logger type: ", type(logger))
+    # exit()
     # HOTFIX for Patrick's desktop: (MP is buggy on it for some reason)
 
     if render:

@@ -4,6 +4,8 @@ import torch
 import torch.optim as optim
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from torch.distributions import kl_divergence
+from torch.utils.tensorboard import SummaryWriter
+from ..utils.logging import Logger
 
 import numpy as np
 from rl.algos import PPO
@@ -182,13 +184,23 @@ class MirrorPPO(PPO):
                 entropy = pdf.entropy().mean().item()
                 kl = kl_divergence(pdf, old_pdf).mean().item()
 
-                logger.record("Return (test)", np.mean(test.ep_returns))
-                logger.record("Return (batch)", np.mean(batch.ep_returns))
-                logger.record("Mean Eplen",  np.mean(batch.ep_lens))
-        
-                logger.record("Mean KL Div", kl)
-                logger.record("Mean Entropy", entropy)
-                logger.dump()
+                if type(logger) is Logger:
+                    logger.record("Return (test)", np.mean(test.ep_returns))
+                    logger.record("Return (batch)", np.mean(batch.ep_returns))
+                    logger.record("Mean Eplen",  np.mean(batch.ep_lens))
+            
+                    logger.record("Mean KL Div", kl)
+                    logger.record("Mean Entropy", entropy)
+                    logger.dump()
+                elif type(logger) is SummaryWriter:
+                    logger.add_scalar("Data/Return (test)", np.mean(test.ep_returns))
+                    logger.add_scalar("Data/Return (batch)", np.mean(batch.ep_returns))
+                    logger.add_scalar("Data/Mean Eplen", np.mean(batch.ep_lens))
+
+                    logger.add_scalar("Misc/Mean KL Div", np.mean(test.ep_returns))
+                    logger.add_scalar("Misc/Mean Entropy", np.mean(test.ep_returns))
+                else:
+                    print("No Logger")
 
             # TODO: add option for how often to save model
             if np.mean(test.ep_returns) > self.max_return:

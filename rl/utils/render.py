@@ -110,6 +110,7 @@ def isData():
 def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05):
     state = torch.Tensor(env.reset_for_test())
     env.speed = 0
+    env.side_speed = 0
     env.phase_add = 1
 
     render_state = env.render()
@@ -119,20 +120,26 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
         tty.setcbreak(sys.stdin.fileno())
         while render_state:
             if isData():
-                c = sys.stdin.read(3)
-                if c == '\x1b[A':
+                c = sys.stdin.read(1)
+                if c == 'w':
                     env.speed += .1
                     print("Increasing speed to: ", env.speed)
-                elif c == '\x1b[B':
+                elif c == 's':
                     env.speed -= .1
                     print("Decreasing speed to: ", env.speed)
-                elif c == '\x1b[C':
+                elif c == 'a':
+                    env.side_speed += .1
+                    print("Increasing side speed to: ", env.side_speed)
+                elif c == 'd':
+                    env.side_speed -= .1
+                    print("Decreasing side speed to: ", env.side_speed)
+                elif c == 'k':
                     env.phase_add += .1
                     print("Increasing frequency to: ", env.phase_add)
-                elif c == '\x1b[D':
+                elif c == 'j':
                     env.phase_add -= .1
                     print("Decreasing frequency to: ", env.phase_add)
-                elif c == 'aaa':
+                elif c == 'p':
                     print("Applying force")
                     push = 200
                     push_dir = 0
@@ -142,9 +149,7 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
                 else:
                     pass
             if (not env.vis.ispaused()):
-                # state[-2] = 0
-                # state[-1] = 0
-                state[0] = 1
+                # state[0] = 1      # For use with StateEst. Replicate hack that height is always set to one on hardware.
                 _, action = policy.act(state, deterministic)
                 if deterministic:
                     action = action.data.numpy()
