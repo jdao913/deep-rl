@@ -112,6 +112,14 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
     env.speed = 0
     env.side_speed = 0
     env.phase_add = 1
+    orient_add = 0
+    torch.nn.Module.dump_patches = True
+
+    # Check if using StateEst or not
+    if env.observation_space.shape[0] >= 48:
+        is_stateest = True
+    else:
+        is_stateest = False
 
     render_state = env.render()
     old_settings = termios.tcgetattr(sys.stdin)
@@ -133,12 +141,18 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
                 elif c == 'd':
                     env.side_speed -= .1
                     print("Decreasing side speed to: ", env.side_speed)
-                elif c == 'k':
+                elif c == 'j':
                     env.phase_add += .1
                     print("Increasing frequency to: ", env.phase_add)
-                elif c == 'j':
+                elif c == 'h':
                     env.phase_add -= .1
                     print("Decreasing frequency to: ", env.phase_add)
+                elif c == 'l':
+                    orient_add += .1
+                    print("Increasing orient_add to: ", orient_add)
+                elif c == 'k':
+                    orient_add -= .1
+                    print("Decreasing orient_add to: ", orient_add)
                 elif c == 'p':
                     print("Applying force")
                     push = 200
@@ -149,7 +163,29 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
                 else:
                     pass
             if (not env.vis.ispaused()):
-                # state[0] = 1      # For use with StateEst. Replicate hack that height is always set to one on hardware.
+                # Update orientation
+                quaternion = euler2quat(z=orient_add, y=0, x=0)
+                iquaternion = inverse_quaternion(quaternion)
+                if is_stateest:
+                    curr_orient = state[1:5]
+                    curr_transvel = state[14:17]
+                else:
+                    curr_orient = state[2:6]
+                    curr_transvel = state[20:23]
+                new_orient = quaternion_product(iquaternion, curr_orient)
+                if new_orient[0] < 0:
+                    new_orient = -new_orient
+                new_translationalVelocity = rotate_by_quaternion(curr_transvel, iquaternion)
+                # print('new_orientation: {}'.format(new_orient))
+                if is_stateest:
+                    state[1:5] = torch.FloatTensor(new_orient)
+                    state[14:17] = torch.FloatTensor(new_translationalVelocity)
+                    state[0] = 1      # For use with StateEst. Replicate hack that height is always set to one on hardware.
+                else:
+                    state[2:6] = torch.FloatTensor(new_orient)
+                    state[20:23] = torch.FloatTensor(new_translationalVelocity)
+               
+                # Get action
                 _, action = policy.act(state, deterministic)
                 if deterministic:
                     action = action.data.numpy()
@@ -159,6 +195,9 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
                 # print("action: ", action.data.numpy())
 
                 state, reward, done, _ = env.step(action)
+                foot_pos = np.zeros(6)
+                env.sim.foot_pos(foot_pos)
+                # print("foot distance: ", np.linalg.norm(foot_pos[0:3]-foot_pos[3:6]))
                 # print("speed: ", env.sim.qvel()[0])
                 # print("desired speed: ", env.speed)
 
