@@ -11,6 +11,7 @@ from cassie.speed_env import CassieEnv_speed
 from cassie.speed_double_freq_env import CassieEnv_speed_dfreq
 from cassie.speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neutral_foot
 from cassie.standing_env import CassieEnv_stand
+from cassie.speed_sidestep_env import CassieEnv_speed_sidestep
 
 from rl.policies import GaussianMLP
 
@@ -24,20 +25,24 @@ def avg_pols(policies, state):
 # Load environment and policy
 # cassie_env = CassieEnv("walking", clock_based=True, state_est=False)
 # cassie_env = CassieEnv_nodelta("walking", clock_based=True, state_est=False)
-cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=True)
 # cassie_env = CassieEnv_speed_dfreq("walking", clock_based=True, state_est=False)
-# cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
+cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_speed_sidestep("walking", clock_based=True, state_est=True)
 # cassie_env = CassieEnv_stand(state_est=False)
 
 obs_dim = cassie_env.observation_space.shape[0] # TODO: could make obs and ac space static properties
 action_dim = cassie_env.action_space.shape[0]
 
-do_multi = True
-no_delta = False
+do_multi = False
+no_delta = True
+limittargs = False
 offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -1.1997, -1.5968])
 
-file_prefix = "stiff_StateEst_speed_ensemble"
-policy = torch.load("./trained_models/stiff_spring/stiff_StateEst_speed2.pt")
+file_prefix = "nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2"
+policy = torch.load("./trained_models/{}.pt".format(file_prefix))
+# file_prefix = "nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2"
+# policy = torch.load("./trained_models/nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2.pt")
 policy.eval()
 
 policies = []
@@ -58,7 +63,7 @@ if do_multi:
         policies.append(policy)
 
 num_steps = 150
-pre_steps = 0
+pre_steps = 100
 torques = np.zeros((num_steps*60, 10))
 GRFs = np.zeros((num_steps*60, 2))
 targets = np.zeros((num_steps*60, 10))
@@ -66,10 +71,17 @@ heights = np.zeros(num_steps*60)
 speeds = np.zeros(num_steps*60)
 foot_pos = np.zeros((num_steps*60, 2))
 actions = np.zeros((num_steps*60, 10))
+pelaccel = np.zeros(num_steps*60)
+feet_qpos = np.zeros((num_steps*60, 4))
+actuated_pos = np.zeros((num_steps*60, 10))
+actuated_vel = np.zeros((num_steps*60, 10))
+pos_idx = [7, 8, 9, 14, 20, 21, 22, 23, 28, 34]
+vel_idx = [6, 7, 8, 12, 18, 19, 20, 21, 25, 31]
 # Execute policy and save torques
 with torch.no_grad():
     state = torch.Tensor(cassie_env.reset_for_test())
-    cassie_env.speed = .3
+    cassie_env.speed = .5
+    # cassie_env.side_speed = .2
     cassie_env.phase_add = 1
     for i in range(pre_steps):
         if not do_multi:
@@ -93,22 +105,31 @@ with torch.no_grad():
             else:
                 ref_pos, ref_vel = cassie_env.get_ref_state(cassie_env.phase + cassie_env.phase_add)
                 target = action + ref_pos[cassie_env.pos_idx]
-            h = 0.0001
-            Tf = 1.0 / 300.0
-            alpha = h / (Tf + h)
-            # real_action = (1-alpha)*cassie_env.prev_action + alpha*target            
+            if limittargs:
+                h = 0.0001
+                Tf = 1.0 / 300.0
+                alpha = h / (Tf + h)
+                real_action = (1-alpha)*cassie_env.prev_action + alpha*target
+                actions[i*60+j, :] = real_action
+            else:    
+                actions[i*60+j, :] = action
             targets[i*60+j, :] = target
-            actions[i*60+j, :] = action
             # print(target)
 
             cassie_env.step_simulation(action)
+            curr_qpos = cassie_env.sim.qpos()
+            curr_qvel = cassie_env.sim.qvel()
             torques[i*60+j, :] = cassie_env.cassie_state.motor.torque[:]
             GRFs[i*60+j, :] = cassie_env.sim.get_foot_forces()
-            heights[i*60+j] = cassie_env.sim.qpos()[2]
+            heights[i*60+j] = curr_qpos[2]
             speeds[i*60+j] = cassie_env.sim.qvel()[0]
             curr_foot = np.zeros(6)
             cassie_env.sim.foot_pos(curr_foot)
             foot_pos[i*60+j, :] = curr_foot[[2, 5]]
+            pelaccel[i*60+j] = np.linalg.norm(cassie_env.cassie_state.pelvis.translationalAcceleration)
+            feet_qpos[i*60+j, :] = np.degrees(curr_qpos[17:21])
+            actuated_pos[i*60+j, :] = [curr_qpos[k] for k in pos_idx]
+            actuated_vel[i*60+j, :] = [curr_qvel[k] for k in vel_idx]
         
         cassie_env.time  += 1
         cassie_env.phase += cassie_env.phase_add
@@ -186,12 +207,12 @@ plt.savefig("./plots/"+file_prefix+"_actions.png")
 # Graph state data
 fig, ax = plt.subplots(2, 2, figsize=(10, 5))
 t = np.linspace(0, num_steps-1, num_steps*60)
-ax[0][0].set_ylabel("meters")
-ax[0][0].plot(t, heights[:])
-ax[0][0].set_title("Height")
+ax[0][0].set_ylabel("norm")
+ax[0][0].plot(t, pelaccel[:])
+ax[0][0].set_title("Pel Accel")
 ax[0][1].set_ylabel("m/s")
-ax[0][1].plot(t, speeds[:])
-ax[0][1].set_title("Speed")
+ax[0][1].plot(t, np.linalg.norm(torques, axis=1))
+ax[0][1].set_title("Torque Norm")
 titles = ["Left", "Right"]
 for i in range(2):
     ax[1][i].plot(t, foot_pos[:, i])
@@ -200,3 +221,43 @@ for i in range(2):
 
 plt.tight_layout()
 plt.savefig("./plots/"+file_prefix+"_state.png")
+
+# Graph feet qpos data
+fig, ax = plt.subplots(1, 4, figsize=(12, 4))
+t = np.linspace(0, num_steps-1, num_steps*60)
+# ax[0][0].set_ylabel("norm")
+# ax[0].plot(t, feet_qpos[:, 0])
+# ax[0].set_title("Heel spring")
+# ax[0][1].set_ylabel("m/s")
+ax[0].plot(t, feet_qpos[:, 1])
+ax[0].set_title("Foot crank")
+ax[2].plot(t, feet_qpos[:, 2])
+ax[2].set_title("Platar Rod")
+ax[1].plot(t, feet_qpos[:, 3])
+ax[1].set_title("Foot")
+ax[3].plot(t, feet_qpos[:, 3] + feet_qpos[:, 2])
+ax[3].set_title("Foot  - plantar rod")
+# titles = ["Left", "Right"]
+# for i in range(2):
+#     ax[1][i].plot(t, foot_pos[:, i])
+#     ax[1][i].set_title(titles[i] + " Foot")
+#     ax[1][i].set_xlabel("Timesteps (0.0005 sec)")
+
+plt.tight_layout()
+plt.savefig("./plots/"+file_prefix+"_feetqpos.png")
+
+# Graph phase portrait for actuated joints
+fig, ax = plt.subplots(1, 5, figsize=(15, 4))
+titles = ["Hip Roll", "Hip Yaw", "Hip Pitch", "Knee", "Foot"]
+ax[0].set_ylabel("Velocity")
+# ax[1][0].set_ylabel("Velocity")
+for i in range(5):
+    ax[i].plot(actuated_pos[:, i], actuated_vel[:, i])
+    ax[i].plot(actuated_pos[:, i+5], actuated_vel[:, i+5])
+    ax[i].set_title(titles[i])
+    # ax[1][i].plot(actuated_pos[:, i+5], actuated_vel[:, i+5])
+    # ax[1][i].set_title("Right " + titles[i])
+    ax[i].set_xlabel("Angle")
+
+plt.tight_layout()
+plt.savefig("./plots/"+file_prefix+"_phaseportrait.png")

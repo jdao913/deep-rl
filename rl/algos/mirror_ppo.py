@@ -28,7 +28,9 @@ class MirrorPPO(PPO):
             mirror_observation = env.mirror_clock_observation
         mirror_action = env.mirror_action
 
-        minibatch_size = self.minibatch_size or advantages.numel()
+        # Use only half of minibatch_size since mirror states will double the minibatch size
+        minibatch_size = int(self.minibatch_size / 2) or advantages.numel()  
+        print("minibatch_size / 2: ", minibatch_size)
 
         for _ in range(self.epochs):
                 losses = []
@@ -40,7 +42,7 @@ class MirrorPPO(PPO):
                 for indices in sampler:
                     indices = torch.LongTensor(indices)
 
-                    obs_batch = observations[indices]
+                    orig_obs = observations[indices]
                     # obs_batch = torch.cat(
                     #     [obs_batch,
                     #      obs_batch @ torch.Tensor(env.obs_symmetry_matrix)]
@@ -64,6 +66,23 @@ class MirrorPPO(PPO):
                     #      advantage_batch]
                     # ).detach()
 
+                    # Add mirror states to minibatch (only obs and actions need to mirrored)
+                    if env.clock_based:
+                        mir_obs = mirror_observation(orig_obs, env.clock_inds)
+                    else:
+                        mir_obs = mirror_observation(orig_obs)
+                    mir_actions = mirror_action(action_batch)
+                    
+                    # print("action batch: ", action_batch)
+                    # obs_batch = torch.cat([orig_obs, mir_obs])
+                    # action_batch = torch.cat([action_batch, mir_actions])
+                    # return_batch = torch.cat([return_batch, return_batch])
+                    # advantage_batch = torch.cat([advantage_batch, advantage_batch])
+                    
+                    # print("mir_action: ", mir_actions)
+                    # print("action batch: ", action_batch)
+                    
+                    obs_batch = orig_obs
                     values, pdf = policy.evaluate(obs_batch)
 
                     # TODO, move this outside loop?
@@ -82,12 +101,8 @@ class MirrorPPO(PPO):
                     critic_loss = 0.5 * (return_batch - values).pow(2).mean()
 
                     # Mirror Symmetry Loss
-                    _, deterministic_actions = policy(obs_batch)
-                    if env.clock_based:
-                        mir_obs = mirror_observation(obs_batch, env.clock_inds)
-                        _, mirror_actions = policy(mir_obs)
-                    else: 
-                        _, mirror_actions = policy(mirror_observation(obs_batch))
+                    _, deterministic_actions = policy(orig_obs)
+                    _, mirror_actions = policy(mir_obs)
                     mirror_actions = mirror_action(mirror_actions)
 
                     mirror_loss = 4 * (deterministic_actions - mirror_actions).pow(2).mean()
@@ -172,11 +187,11 @@ class MirrorPPO(PPO):
            
             print("optimizer time elapsed: {:.2f} s".format(time.time() - optimizer_start))        
 
-
-            if logger is not None:
-                evaluate_start = time.time()
-                test = self.sample_parallel(env_fn, policy, 800 // self.n_proc, self.max_traj_len, deterministic=True)
-                print("evaluate time elapsed: {:.2f} s".format(time.time() - evaluate_start))
+            evaluate_start = time.time()
+            test = self.sample_parallel(env_fn, policy, 800 // self.n_proc, self.max_traj_len, deterministic=True)
+            print("evaluate time elapsed: {:.2f} s".format(time.time() - evaluate_start))
+            
+            if logger is not None:    
 
                 _, pdf     = policy.evaluate(observations)
                 _, old_pdf = old_policy.evaluate(observations)

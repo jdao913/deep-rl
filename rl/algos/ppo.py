@@ -61,7 +61,7 @@ class PPOBuffer:
     def finish_path(self, last_val=None):
         if last_val is None:
             last_val = np.zeros(shape=(1,))
-
+    
         path = slice(self.path_idx, self.ptr)
         rewards = self.rewards[path]
 
@@ -249,7 +249,7 @@ class PPO:
 
             value, _ = policy.act(state)
             memory.finish_path(last_val=(not done) * value.numpy())
-        
+
         return memory
 
     def sample_parallel(self, env_fn, policy, min_steps, max_traj_len, deterministic=False):

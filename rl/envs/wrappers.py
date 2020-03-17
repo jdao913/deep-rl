@@ -73,10 +73,10 @@ class SymmetricEnv:
 
 def _get_symmetry_matrix(mirrored):
     numel = len(mirrored)
-    mat = np.zeros((numel, numel))
+    mat = np.zeros((numel, numel), dtype=int)
 
     mirrored = np.array(mirrored)
     for (i, j) in zip(np.arange(numel), np.abs(mirrored.astype(int))):
-        mat[i, j] = np.sign(mirrored[i])
+        mat[i, j] = int(np.sign(mirrored[i]))
 
     return mat 

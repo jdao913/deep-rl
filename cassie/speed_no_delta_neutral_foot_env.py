@@ -35,10 +35,12 @@ class CassieEnv_speed_no_delta_neutral_foot:
             self.observation_space = np.zeros(42 + 1)
             if self.state_est:
                 self.observation_space = np.zeros(48 + 1)       # Size for use with state est
+            self.ext_size = 3       # Size of ext_state in get_full_state()
         else:
             self.observation_space = np.zeros(80)
             if self.state_est:
                 self.observation_space = np.zeros(86)       # Size for use with state est
+            self.ext_size = 1       # Size of ext_state in get_full_state()
         self.action_space      = np.zeros(10)
 
         dirname = os.path.dirname(__file__)
@@ -223,14 +225,14 @@ class CassieEnv_speed_no_delta_neutral_foot:
         ref_pos_prev, ref_vel_prev = self.get_ref_state(int(np.floor(self.phase)))
         phase_diff = self.phase - np.floor(self.phase)
         if phase_diff != 0:
-           ref_pos_next, ref_vel_next = self.get_ref_state(int(np.ceil(self.phase)))
-           ref_pos_diff = ref_pos_next - ref_pos_prev
-           ref_vel_diff = ref_vel_next - ref_vel_prev
-           ref_pos = ref_pos_prev + phase_diff*ref_pos_diff
-           ref_vel = ref_vel_prev + phase_diff*ref_vel_diff
+            ref_pos_next, ref_vel_next = self.get_ref_state(int(np.ceil(self.phase)))
+            ref_pos_diff = ref_pos_next - ref_pos_prev
+            ref_vel_diff = ref_vel_next - ref_vel_prev
+            ref_pos = ref_pos_prev + phase_diff*ref_pos_diff
+            ref_vel = ref_vel_prev + phase_diff*ref_vel_diff
         else:
-           ref_pos = ref_pos_prev
-           ref_vel = ref_vel_prev
+            ref_pos = ref_pos_prev
+            ref_vel = ref_vel_prev
 
         # TODO: should be variable; where do these come from?
         # TODO: see magnitude of state variables to gauge contribution to reward
@@ -243,33 +245,32 @@ class CassieEnv_speed_no_delta_neutral_foot:
 
         # each joint pos
         for i, j in enumerate(self.pos_idx):
-           target = ref_pos[j]
-           actual = qpos[j]
+            target = ref_pos[j]
+            actual = qpos[j]
 
-           joint_error += 30 * weight[i] * (target - actual) ** 2
+            joint_error += 30 * weight[i] * (target - actual) ** 2
 
         # center of mass: x, y, z
         for j in [0, 1, 2]:
-           target = ref_pos[j]
-           actual = qpos[j]
+            target = ref_pos[j]
+            actual = qpos[j]
 
-            NOTE: in Xie et al y target is 0
-
-           com_error += (target - actual) ** 2
+            # NOTE: in Xie et al y target is 0
+            com_error += (target - actual) ** 2
         
         # COM orientation: qx, qy, qz
         for j in [4, 5, 6]:
-           target = ref_pos[j] # NOTE: in Xie et al orientation target is 0
-           actual = qpos[j]
+            target = ref_pos[j] # NOTE: in Xie et al orientation target is 0
+            actual = qpos[j]
 
-           orientation_error += (target - actual) ** 2
+            orientation_error += (target - actual) ** 2
 
         # left and right shin springs
         for i in [15, 29]:
-           target = ref_pos[i] # NOTE: in Xie et al spring target is 0
-           actual = qpos[i]
+            target = ref_pos[i] # NOTE: in Xie et al spring target is 0
+            actual = qpos[i]
 
-           spring_error += 1000 * (target - actual) ** 2      
+            spring_error += 1000 * (target - actual) ** 2      
         
         reward = 0.5 * np.exp(-joint_error) +       \
                 0.3 * np.exp(-com_error) +         \
@@ -420,7 +421,6 @@ class CassieEnv_speed_no_delta_neutral_foot:
             self.cassie_state.joint.position[:],                                     # unactuated joint positions
             self.cassie_state.joint.velocity[:]                                      # unactuated joint velocities
         ])
-
         if self.state_est:
             return np.concatenate([robot_state,  
                                ext_state])

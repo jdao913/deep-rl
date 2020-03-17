@@ -21,18 +21,9 @@ import time
 # cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=True)
 # cassie_env = CassieEnv_speed_dfreq("walking", clock_based=True, state_est=False)
 # cassie_env = CassieEnv_speed_no_delta("walking", clock_based=True, state_est=False)
-# cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
-cassie_env = CassieEnv_speed_sidestep("walking", clock_based=True, state_est=False)
+cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_speed_sidestep("walking", clock_based=True, state_est=True)
 # cassie_env = CassieEnv_stand(state_est=False)
-
-# env = cassieRLEnvMirror()
-# env.phase = 0
-# env.counter = 0
-# num_inputs = env.observation_space.shape[0]
-# num_outputs = env.action_space.shape[0]
-# cassie_env = CassieIKEnv(clock_based=True)
-obs_dim = cassie_env.observation_space.shape[0] # TODO: could make obs and ac space static properties
-action_dim = cassie_env.action_space.shape[0]
 
 # policy = torch.load("./trained_models/stiff_spring.pt")
 # policies = []
@@ -46,10 +37,13 @@ action_dim = cassie_env.action_space.shape[0]
 # rendermultipolicy(cassie_env, policies, deterministic=True, dt=0.05, speedup = 1)
 # torch.nn.Module.dump_patches = True
 # print("phaselen: ", cassie_env.phaselen)
+# torch.nn.Module.dump_patches = True
 # policy = torch.load("./trained_models/stiff_spring/stiff_StateEst_speed2.pt")
-policy = torch.load("./trained_models/sidestep_speedreward.pt")
+# policy = torch.load("./trained_models/nodelta_neutral_StateEst_speedreward.pt")
+# torch.save(policy, "./trained_models/sidestep_StateEst_footxypenaltysmall_forcepenalty_hipyaw_limittargs_pelpenalty_h0001_speed-05-1_side03_freq1.pt")
+policy = torch.load("./trained_models/nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2.pt")
 policy.eval()
-renderpolicy_speedinput(cassie_env, policy, deterministic=True, dt=0.05, speedup = 3)
+renderpolicy_speedinput(cassie_env, policy, deterministic=True, dt=0.05, speedup = 2)
 
 # model = ActorCriticNet(num_inputs, num_outputs, [256, 256])
 # model.load_state_dict(torch.load("torch_model/SupervisedMultiDirectionMar6.pt"))

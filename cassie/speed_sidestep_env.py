@@ -35,10 +35,12 @@ class CassieEnv_speed_sidestep:
             self.observation_space = np.zeros(42 + 2)
             if self.state_est:
                 self.observation_space = np.zeros(48 + 2)       # Size for use with state est
+            self.ext_size = 4       # Size of ext_state in get_full_state()
         else:
             self.observation_space = np.zeros(80)
             if self.state_est:
                 self.observation_space = np.zeros(86)       # Size for use with state est
+            self.ext_size = 2       # Size of ext_state in get_full_state()
         self.action_space      = np.zeros(10)
 
         dirname = os.path.dirname(__file__)
@@ -80,8 +82,10 @@ class CassieEnv_speed_sidestep:
 
         self.speed = 1
         self.side_speed = 0     # Positive is left direction, negative is right direction
+        self.max_force = 0
         # maybe make ref traj only send relevant idxs?
         ref_pos, ref_vel = self.get_ref_state(self.phase)
+        self.prev_action = ref_pos[self.pos_idx]
         self.phase_add = 1
         if self.state_est:
             self.clock_inds = [46, 47]
@@ -89,15 +93,21 @@ class CassieEnv_speed_sidestep:
             self.clock_inds = [40, 41] 
 
     def step_simulation(self, action):
-
-        real_action = action
+        
         offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -1.1997, -1.5968])
-        real_action = real_action + offset
+        real_action = action + offset
+        # target = action + offset
+
+        # h = 0.0001
+        # Tf = 1.0 / 300.0
+        # alpha = h / (Tf + h)
+        
+        # real_action = (1-alpha)*self.prev_action + alpha*target
+        # self.prev_action = real_action      # Save previous action
+
         # real_action[4] += -1.5968
         # real_action[9] += -1.5968
-        
-        # target = action + ref_pos[self.pos_idx]
-        
+                
         self.u = pd_in_t()
         for i in range(5):
             # TODO: move setting gains out of the loop?
@@ -118,6 +128,8 @@ class CassieEnv_speed_sidestep:
             self.u.rightLeg.motorPd.dTarget[i] = 0
 
         self.cassie_state = self.sim.step_pd(self.u)
+        # foot_forces = self.sim.get_foot_forces()
+        # self.max_force = max(foot_forces[0], foot_forces[1])
 
     def step(self, action):
         for _ in range(self.simrate):
@@ -147,6 +159,7 @@ class CassieEnv_speed_sidestep:
         self.phase = random.randint(0, self.phaselen)
         self.time = 0
         self.counter = 0
+        self.max_force = 0
 
         orientation = random.randint(-10, 10) * np.pi / 25
         quaternion = euler2quat(z=orientation, y=0, x=0)
@@ -164,6 +177,8 @@ class CassieEnv_speed_sidestep:
         self.speed = (random.randint(-5, 10)) / 10
         self.side_speed = 0.6*random.random() - 0.3
         self.phase_add = 1# + random.random()
+        ref_pos, ref_vel = self.get_ref_state(self.phase)
+        self.prev_action = ref_pos[self.pos_idx]
 
         return self.get_full_state()
 
@@ -174,6 +189,7 @@ class CassieEnv_speed_sidestep:
         self.counter = 0
         self.speed = 1
         self.side_speed = 0
+        self.max_force = 0
 
         qpos, qvel = self.get_ref_state(self.phase)
 
@@ -182,6 +198,9 @@ class CassieEnv_speed_sidestep:
 
         # Need to reset u? Or better way to reset cassie_state than taking step
         self.cassie_state = self.sim.step_pd(self.u)
+        self.phase_add = 1
+        ref_pos, ref_vel = self.get_ref_state(self.phase)
+        self.prev_action = ref_pos[self.pos_idx]
 
         return self.get_full_state()
     
@@ -309,13 +328,28 @@ class CassieEnv_speed_sidestep:
         self.sim.foot_pos(foot_pos)
         foot_dist = np.linalg.norm(foot_pos[0:2]-foot_pos[3:5])
         foot_penalty = 0
-        if foot_dist < 0.18:
-            foot_penalty = -0.2
+        if foot_dist < 0.12:
+            foot_penalty = 0.2
+        # Foot force penalty
         foot_forces = self.sim.get_foot_forces()
-        force_penalty = 0
-        if foot_forces[0] > 700 or foot_forces[1] > 700:
-            force_penalty = -0.2
-        reward = .4*np.exp(-forward_diff) + .4*np.exp(-side_diff) + .2*np.exp(-orient_diff) + foot_penalty + force_penalty
+        lforce = max((foot_forces[0] - 700)/1000, 0)
+        rforce = max((foot_forces[1] - 700)/1000, 0)
+        # Hip yaw penalty (pigeon/duck toed)
+        lhipyaw = qpos[8]
+        rhipyaw = qpos[22]
+        if lhipyaw < 0.05:
+            lhipyaw = 0
+        if rhipyaw < 0.05:
+            rhipyaw = 0
+        pelaccel = np.linalg.norm(self.cassie_state.pelvis.translationalAcceleration)
+        pelaccel_penalty = 0
+        if pelaccel < 10:
+            pelaccel_penalty = 0.2
+        # Foot orientation penalty
+        # leuler = quaternion2euler(self.cassie_state.leftFoot.orientation)
+        # reuler = quaternion2euler(self.cassie_state.rightFoot.orientation)
+        reward = .3*np.exp(-forward_diff) + .3*np.exp(-side_diff) + .2*np.exp(-orient_diff) + \
+                .1*np.exp(-lhipyaw) + .1*np.exp(-rhipyaw) - pelaccel_penalty - foot_penalty - lforce - rforce
         # desired_speed = 3.0
         # speed_diff = np.abs(qvel[0] - desired_speed)
         # if speed_diff > 1:

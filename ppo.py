@@ -57,18 +57,20 @@ parser.add_argument("--name", type=str, default="model")
 
 args = parser.parse_args()
 
-args.batch_size = 128
+args.minibatch_size = 2048
 args.lr = 1e-4
 args.epochs = 3
 # args.epochs = 5
-args.num_procs = 4
-args.num_steps = 120 // args.num_procs
+args.num_procs = 6
+args.num_steps = 12000 // args.num_procs
 args.max_traj_len = 300
 args.seed = int(time.time())
 args.max_grad_norm = 0.05
 args.use_gae = False
+args.state_est = True
+args.mirror = False
 
-args.name = "logger_test"
+args.name = "fwrd_walk_symmetry"
 print("number of procs:", args.num_procs)
 
 if __name__ == "__main__":
@@ -80,38 +82,44 @@ if __name__ == "__main__":
     # env_fn = functools.partial(CassieEnv_speed, "walking", clock_based=True, state_est=True)
     # env_fn = functools.partial(CassieEnv_nodelta, "walking", clock_based=True, state_est=False)
     # env_fn = functools.partial(CassieEnv_speed_dfreq, "walking", clock_based=True, state_est=False)
-    # env_fn = functools.partial(CassieEnv_speed_no_delta_neutral_foot, "walking", clock_based=True, state_est=True)
-    env_fn = functools.partial(CassieEnv_speed_sidestep, "walking", clock_based=True, state_est=False)
+    env_fn = functools.partial(CassieEnv_speed_no_delta_neutral_foot, "walking", clock_based=True, state_est=args.state_est)
+    # env_fn = functools.partial(CassieEnv_speed_sidestep, "walking", clock_based=True, state_est=args.state_est)
     # env_fn = functools.partial(CassieEnv_stand, state_est=False)
 
     obs_dim = env_fn().observation_space.shape[0] # TODO: could make obs and ac space static properties
     action_dim = env_fn().action_space.shape[0]
 
-    env_fn = functools.partial(SymmetricEnv, env_fn, mirrored_obs=[0, 1, 2, 3, 4, 5, -13, -14, 15, 16, 17,
-                                        18, 19, -6, -7, 8, 9, 10, 11, 12, 20, 21, 22, 23, 24, 25, -33,
-                                        -34, 35, 36, 37, 38, 39, -26, -27, 28, 29, 30, 31, 32, 40, 41, 42, 43],
-                                          mirrored_act = [-5, -6, 7, 8, 9, -0.1, -1, 2, 3, 4])
-    # For use with StateEst
-    # env_fn = functools.partial(SymmetricEnv, env_fn, mirrored_obs = [0, 1, 2, 3, 4, -10, -11, 12, 13, 14, -5,
-    #                                     -6, 7, 8, 9, 15, 16, 17, 18, 19, 20, -26, -27, 28, 29, 30, -21, -22, 23, 24, 
-    #                                     25, 31, 32, 33, 37, 38, 39, 34, 35, 36, 43, 44, 45, 40, 41, 42, 46, 47, 48],
-    #                                     mirrored_act = [-5, -6, 7, 8, 9, -0.1, -1, 2, 3, 4])
+    if args.mirror:
+        if args.state_est:
+            # with state estimator
+            mirror_obs = [0.1, 1, 2, 3, 4, -10, -11, 12, 13, 14, -5, -6, 7, 8, 9, 15,
+                        16, 17, 18, 19, 20, -26, -27, 28, 29, 30, -21, -22, 23, 24,
+                        25, 31, 32, 33, 37, 38, 39, 34, 35, 36, 43, 44, 45, 40, 41, 42]
+        else:
+            # without state estimator
+            mirror_obs = [0.1, 1, 2, 3, 4, 5, -13, -14, 15, 16, 17, 18, 19, -6, -7,
+                        8, 9, 10, 11, 12, 20, 21, 22, 23, 24, 25, -33, -34, 35, 36,
+                        37, 38, 39, -26, -27, 28, 29, 30, 31, 32]
+        
+        mirror_obs += [i for i in range(obs_dim - env_fn().ext_size, obs_dim)]   
+        env_fn = functools.partial(SymmetricEnv, env_fn, mirrored_obs=mirror_obs, mirrored_act = [-5, -6, 7, 8, 9, -0.1, -1, 2, 3, 4])
 
     # Make a new policy
     policy = GaussianMLP(obs_dim, action_dim, nonlinearity="relu", init_std=np.exp(-2), learn_std=False)
     
     # Load previous policy
-    # policy = torch.load("./trained_models/sidestep_test.pt")
-    # policy.train(0)
+    # policy = torch.load("./trained_models/sidestep_StateEst_footxypenaltysmall_forcepenalty_footorient_limittargs_speed-05-1_side03_freq1.pt")
+    policy.train(0)
 
-
-    normalizer = PreNormalizer(iter=10, noise_std=1, policy=policy, online=False)
+    normalizer = PreNormalizer(iter=10000, noise_std=2, policy=policy, online=False)
     # normalizer = None
 
-    # algo = PPO(args=vars(args))
-    algo = MirrorPPO(args=vars(args))
-    # algo = PPO_ADAM_adapt(args=vars(args))
-    # algo = Mirror_PPO_ADAM_adapt(args=vars(args))
+    if args.mirror:
+        algo = MirrorPPO(args=vars(args))
+        # algo = Mirror_PPO_ADAM_adapt(args=vars(args))
+    else:
+        algo = PPO(args=vars(args))
+        # algo = PPO_ADAM_adapt(args=vars(args))
     #with torch.autograd.detect_anomaly():
     # TODO: make log, monitor and render command line arguments
     # TODO: make algos take in a dictionary or list of quantities to log (e.g. reward, entropy, kl div etc)
@@ -122,6 +130,7 @@ if __name__ == "__main__":
         normalizer=normalizer,
         args=args,
         log=True,
+        log_type="Visdom",
         monitor=True,
         render=False # NOTE: CassieVis() hangs when launched in seperate thread. BUG?
                     # Also, waitpid() hangs on patrick's desktop in mp.Process. BUG?

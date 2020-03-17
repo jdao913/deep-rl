@@ -197,9 +197,12 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
                 state, reward, done, _ = env.step(action)
                 foot_pos = np.zeros(6)
                 env.sim.foot_pos(foot_pos)
+                foot_forces = env.sim.get_foot_forces()
+                # print("Foot force norm: ", foot_forces[0])
                 # print("foot distance: ", np.linalg.norm(foot_pos[0:3]-foot_pos[3:6]))
                 # print("speed: ", env.sim.qvel()[0])
                 # print("desired speed: ", env.speed)
+                # print("pelvis accel: ", np.linalg.norm(env.cassie_state.pelvis.translationalAcceleration))
 
                 # if done:
                 #     state = env.reset()

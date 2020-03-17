@@ -22,7 +22,8 @@ class GaussianMLP(FFPolicy):
                  num_inputs, 
                  action_dim, 
                  init_std=1, 
-                 learn_std=True, 
+                 learn_std=True,
+                #  bounded = False,  
                  nonlinearity="tanh", 
                  normc_init=False,
                  obs_std=None,
@@ -31,6 +32,7 @@ class GaussianMLP(FFPolicy):
 
         actor_dims = (256, 256)
         critic_dims = (256, 256)
+        # self.bounded = bounded
 
         # create actor network
         self.actor_layers = nn.ModuleList()
@@ -92,6 +94,9 @@ class GaussianMLP(FFPolicy):
             x = self.nonlinearity(l(x))
         x = self.mean(x)
 
-        mean = x#torch.tanh(x) # NOTE: not sure what this is for, but Xie et al does it?
+        # if self.bounded:
+        #     mean = torch.tanh(x)
+        # else:
+        mean = x # NOTE: not sure what this is for, but Xie et al does it?
 
         return value, mean
