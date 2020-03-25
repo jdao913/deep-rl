@@ -2,6 +2,7 @@ from .cassiemujoco import pd_in_t, state_out_t, CassieSim, CassieVis
 
 from .trajectory import CassieTrajectory
 from cassie.quaternion_function import *
+from .rewards import *
 
 from math import floor
 
@@ -79,6 +80,70 @@ class CassieEnv_speed_no_delta_neutral_foot:
         # see include/cassiemujoco.h for meaning of these indices
         self.pos_idx = [7, 8, 9, 14, 20, 21, 22, 23, 28, 34]
         self.vel_idx = [6, 7, 8, 12, 18, 19, 20, 21, 25, 31]
+
+        #### Dynamics Randomization ####
+        self.dynamics_rand = False
+        # Record default dynamics parameters
+        if self.dynamics_rand:
+            self.default_damping = self.sim.get_dof_damping()
+            self.default_mass = self.sim.get_body_mass()
+            self.default_ipos = self.sim.get_body_ipos()
+            self.default_fric = self.sim.get_geom_friction()
+
+            weak_factor = 0.5
+            strong_factor = 0.5
+
+            pelvis_damp_range = [[self.default_damping[0], self.default_damping[0]], 
+                                [self.default_damping[1], self.default_damping[1]], 
+                                [self.default_damping[2], self.default_damping[2]], 
+                                [self.default_damping[3], self.default_damping[3]], 
+                                [self.default_damping[4], self.default_damping[4]], 
+                                [self.default_damping[5], self.default_damping[5]]] 
+
+            hip_damp_range = [[self.default_damping[6]*weak_factor, self.default_damping[6]*strong_factor],
+                            [self.default_damping[7]*weak_factor, self.default_damping[7]*strong_factor],
+                            [self.default_damping[8]*weak_factor, self.default_damping[8]*strong_factor]]  # 6->8 and 19->21
+
+            achilles_damp_range = [[self.default_damping[9]*weak_factor,  self.default_damping[9]*strong_factor],
+                                    [self.default_damping[10]*weak_factor, self.default_damping[10]*strong_factor], 
+                                    [self.default_damping[11]*weak_factor, self.default_damping[11]*strong_factor]] # 9->11 and 22->24
+
+            knee_damp_range     = [[self.default_damping[12]*weak_factor, self.default_damping[12]*strong_factor]]   # 12 and 25
+            shin_damp_range     = [[self.default_damping[13]*weak_factor, self.default_damping[13]*strong_factor]]   # 13 and 26
+            tarsus_damp_range   = [[self.default_damping[14], self.default_damping[14]]]             # 14 and 27
+            heel_damp_range     = [[self.default_damping[15], self.default_damping[15]]]                           # 15 and 28
+            fcrank_damp_range   = [[self.default_damping[16]*weak_factor, self.default_damping[16]*strong_factor]]   # 16 and 29
+            prod_damp_range     = [[self.default_damping[17], self.default_damping[17]]]                           # 17 and 30
+            foot_damp_range     = [[self.default_damping[18]*weak_factor, self.default_damping[18]*strong_factor]]   # 18 and 31
+
+            side_damp = hip_damp_range + achilles_damp_range + knee_damp_range + shin_damp_range + tarsus_damp_range + heel_damp_range + fcrank_damp_range + prod_damp_range + foot_damp_range
+            self.damp_range = pelvis_damp_range + side_damp + side_damp
+
+            hi = 1.1
+            lo = 0.9
+            m = self.default_mass
+            pelvis_mass_range      = [[lo*m[1],  hi*m[1]]]  # 1
+            hip_mass_range         = [[lo*m[2],  hi*m[2]],  # 2->4 and 14->16
+                                    [lo*m[3],  hi*m[3]], 
+                                    [lo*m[4],  hi*m[4]]] 
+
+            achilles_mass_range    = [[lo*m[5],  hi*m[5]]]  # 5 and 17
+            knee_mass_range        = [[lo*m[6],  hi*m[6]]]  # 6 and 18
+            knee_spring_mass_range = [[lo*m[7],  hi*m[7]]]  # 7 and 19
+            shin_mass_range        = [[lo*m[8],  hi*m[8]]]  # 8 and 20
+            tarsus_mass_range      = [[lo*m[9],  hi*m[9]]]  # 9 and 21
+            heel_spring_mass_range = [[lo*m[10], hi*m[10]]] # 10 and 22
+            fcrank_mass_range      = [[lo*m[11], hi*m[11]]] # 11 and 23
+            prod_mass_range        = [[lo*m[12], hi*m[12]]] # 12 and 24
+            foot_mass_range        = [[lo*m[13], hi*m[13]]] # 13 and 25
+
+            side_mass = hip_mass_range + achilles_mass_range \
+                        + knee_mass_range + knee_spring_mass_range \
+                        + shin_mass_range + tarsus_mass_range \
+                        + heel_spring_mass_range + fcrank_mass_range \
+                        + prod_mass_range + foot_mass_range
+
+            self.mass_range = [[0, 0]] + pelvis_mass_range + side_mass + side_mass
 
         self.speed = 1
         # maybe make ref traj only send relevant idxs?
@@ -165,6 +230,18 @@ class CassieEnv_speed_no_delta_neutral_foot:
         self.speed = (random.randint(0, 10)) / 10
         self.phase_add = 1# + random.random()
 
+        if self.dynamics_rand:
+            #### Dynamics Randomization ####
+            damp_noise = [np.random.uniform(a, b) for a, b in self.damp_range]
+            mass_noise = [np.random.uniform(a, b) for a, b in self.mass_range]
+            # com_noise = [0, 0, 0] + [np.random.uniform(self.delta_x_min, self.delta_x_min)] + [np.random.uniform(self.delta_y_min, self.delta_y_max)] + [0] + list(self.default_ipos[6:])
+            fric_noise = [np.random.uniform(0.6, 1.2), np.random.uniform(1e-4, 1e-2), np.random.uniform(5e-5, 5e-4)]
+            self.sim.set_dof_damping(np.clip(damp_noise, 0, None))
+            self.sim.set_body_mass(np.clip(mass_noise, 0, None))
+            # self.sim.set_body_ipos(com_noise)
+            self.sim.set_geom_friction(np.clip(fric_noise, 0, None), "floor")
+            self.sim.set_const()
+
         return self.get_full_state()
 
     # used for plotting against the reference trajectory
@@ -181,6 +258,13 @@ class CassieEnv_speed_no_delta_neutral_foot:
 
         # Need to reset u? Or better way to reset cassie_state than taking step
         self.cassie_state = self.sim.step_pd(self.u)
+
+        if self.dynamics_rand:
+            self.sim.set_dof_damping(self.default_damping)
+            self.sim.set_body_mass(self.default_mass)
+            # self.sim.set_body_ipos(self.default_ipos)
+            self.sim.set_geom_friction(self.default_fric)
+            self.sim.set_const()
 
         return self.get_full_state()
     
@@ -219,93 +303,9 @@ class CassieEnv_speed_no_delta_neutral_foot:
     # NOTE: this reward is slightly different from the one in Xie et al
     # see notes for details
     def compute_reward(self):
-        qpos = np.copy(self.sim.qpos())
-        qvel = np.copy(self.sim.qvel())
 
-        ref_pos_prev, ref_vel_prev = self.get_ref_state(int(np.floor(self.phase)))
-        phase_diff = self.phase - np.floor(self.phase)
-        if phase_diff != 0:
-            ref_pos_next, ref_vel_next = self.get_ref_state(int(np.ceil(self.phase)))
-            ref_pos_diff = ref_pos_next - ref_pos_prev
-            ref_vel_diff = ref_vel_next - ref_vel_prev
-            ref_pos = ref_pos_prev + phase_diff*ref_pos_diff
-            ref_vel = ref_vel_prev + phase_diff*ref_vel_diff
-        else:
-            ref_pos = ref_pos_prev
-            ref_vel = ref_vel_prev
-
-        # TODO: should be variable; where do these come from?
-        # TODO: see magnitude of state variables to gauge contribution to reward
-        weight = [0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05]
-
-        joint_error       = 0
-        com_error         = 0
-        orientation_error = 0
-        spring_error      = 0
-
-        # each joint pos
-        for i, j in enumerate(self.pos_idx):
-            target = ref_pos[j]
-            actual = qpos[j]
-
-            joint_error += 30 * weight[i] * (target - actual) ** 2
-
-        # center of mass: x, y, z
-        for j in [0, 1, 2]:
-            target = ref_pos[j]
-            actual = qpos[j]
-
-            # NOTE: in Xie et al y target is 0
-            com_error += (target - actual) ** 2
-        
-        # COM orientation: qx, qy, qz
-        for j in [4, 5, 6]:
-            target = ref_pos[j] # NOTE: in Xie et al orientation target is 0
-            actual = qpos[j]
-
-            orientation_error += (target - actual) ** 2
-
-        # left and right shin springs
-        for i in [15, 29]:
-            target = ref_pos[i] # NOTE: in Xie et al spring target is 0
-            actual = qpos[i]
-
-            spring_error += 1000 * (target - actual) ** 2      
-        
-        reward = 0.5 * np.exp(-joint_error) +       \
-                0.3 * np.exp(-com_error) +         \
-                0.1 * np.exp(-orientation_error) + \
-                0.1 * np.exp(-spring_error)
-
-        # orientation error does not look informative
-        # maybe because it's comparing euclidean distance on quaternions
-        # print("reward: {8}\njoint:\t{0:.2f}, % = {1:.2f}\ncom:\t{2:.2f}, % = {3:.2f}\norient:\t{4:.2f}, % = {5:.2f}\nspring:\t{6:.2f}, % = {7:.2f}\n\n".format(
-        #             0.5 * np.exp(-joint_error),       0.5 * np.exp(-joint_error) / reward * 100,
-        #             0.3 * np.exp(-com_error),         0.3 * np.exp(-com_error) / reward * 100,
-        #             0.1 * np.exp(-orientation_error), 0.1 * np.exp(-orientation_error) / reward * 100,
-        #             0.1 * np.exp(-spring_error),      0.1 * np.exp(-spring_error) / reward * 100,
-        #             reward
-        #         )
-        #     )  
-
-        # reward = np.sign(qvel[0])*qvel[0]**2
-        # diff = np.abs(qvel[0] - 5)
-        # speed_rew = qvel[0]
-        # orient_diff = np.linalg.norm(qpos[3:7] - np.array([1, 0, 0, 0]))
-        # y_vel = np.abs(qvel[1])
-        # if diff < 0.05:
-        #   diff = 0
-        # if y_vel < 0.03:
-        #   y_vel = 0
-        # straight_diff = np.abs(qpos[1])
-        # if straight_diff < 0.05:
-        #   straight_diff = 0
-        # reward = .5*np.exp(-diff) + .15*np.exp(-orient_diff) + .1*np.exp(-y_vel) + .25 * np.exp(-straight_diff)
-        # desired_speed = 3.0
-        # speed_diff = np.abs(qvel[0] - desired_speed)
-        # if speed_diff > 1:
-        #     speed_diff = speed_diff**2
-        # reward = 20 - speed_diff
+        # reward = trajmatch_reward(self)
+        reward = speedmatch_reward(self)
 
         return reward
 
