@@ -14,7 +14,7 @@ def run_experiment(algo, policy, env_fn, args, normalizer=None, log=True, log_ty
         if log_type == "Visdom":
             logger = Logger(args, viz=monitor)
         elif log_type == "tensorboard":
-            log_path = "./logs/"+args.name+"/"
+            log_path = args.logdir + args.name+"/"
             logger = SummaryWriter(log_path, flush_secs=0.1)
         else:
             print("Error: Logger type unknown")

@@ -69,6 +69,8 @@ args.max_grad_norm = 0.05
 args.use_gae = False
 args.state_est = True
 args.mirror = False
+ags.logdir = "./logs/test/"
+args.log_type = "tensorboard"
 
 args.name = "fwrd_walk_symmetry"
 print("number of procs:", args.num_procs)
@@ -130,7 +132,7 @@ if __name__ == "__main__":
         normalizer=normalizer,
         args=args,
         log=True,
-        log_type="Visdom",
+        log_type=args.log_type,
         monitor=True,
         render=False # NOTE: CassieVis() hangs when launched in seperate thread. BUG?
                     # Also, waitpid() hangs on patrick's desktop in mp.Process. BUG?
