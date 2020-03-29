@@ -61,19 +61,32 @@ args.minibatch_size = 2048
 args.lr = 1e-4
 args.epochs = 3
 # args.epochs = 5
-args.num_procs = 6
+# TODO: Seems like can't use too many cores, run into "too many open files" error, don't know why
+# only file that is opened is the trajectory file
+args.num_procs = 56
 args.num_steps = 12000 // args.num_procs
+args.input_norm_steps = 10000
 args.max_traj_len = 300
-args.seed = int(time.time())
+# args.seed = int(time.time())
 args.max_grad_norm = 0.05
 args.use_gae = False
 args.state_est = True
-args.mirror = False
-ags.logdir = "./logs/test/"
+args.mirror = True
+args.logdir = "./logs/test/"
 args.log_type = "tensorboard"
 
-args.name = "fwrd_walk_symmetry"
+args.name = "deeprl_5k_retrain_dynrand_trajmatch_seed{}".format(args.seed)
+# args.name = "test"
+
+index = ''
+while os.path.isfile(os.path.join("./trained_models/", args.name + index + ".pt")):
+    if index:
+        index = '_(' + str(int(index[2:-1]) + 1) + ')'
+    else:
+        index = '_(1)'
+args.name += index
 print("number of procs:", args.num_procs)
+print("Policy name: ", args.name)
 
 if __name__ == "__main__":
     torch.set_num_threads(1) # see: https://github.com/pytorch/pytorch/issues/13757 
@@ -113,7 +126,7 @@ if __name__ == "__main__":
     # policy = torch.load("./trained_models/sidestep_StateEst_footxypenaltysmall_forcepenalty_footorient_limittargs_speed-05-1_side03_freq1.pt")
     policy.train(0)
 
-    normalizer = PreNormalizer(iter=10000, noise_std=2, policy=policy, online=False)
+    normalizer = PreNormalizer(iter=args.input_norm_steps, noise_std=2, policy=policy, online=False)
     # normalizer = None
 
     if args.mirror:

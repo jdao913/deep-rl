@@ -82,7 +82,7 @@ class CassieEnv_speed_no_delta_neutral_foot:
         self.vel_idx = [6, 7, 8, 12, 18, 19, 20, 21, 25, 31]
 
         #### Dynamics Randomization ####
-        self.dynamics_rand = False
+        self.dynamics_rand = True
         # Record default dynamics parameters
         if self.dynamics_rand:
             self.default_damping = self.sim.get_dof_damping()
@@ -304,8 +304,8 @@ class CassieEnv_speed_no_delta_neutral_foot:
     # see notes for details
     def compute_reward(self):
 
-        # reward = trajmatch_reward(self)
-        reward = speedmatch_reward(self)
+        reward = trajmatch_reward(self)
+        # reward = speedmatch_reward(self)
 
         return reward
 

@@ -10,6 +10,7 @@ from ..utils.logging import Logger
 import numpy as np
 from rl.algos import PPO
 from rl.envs import Vectorize, Normalize
+import sys
 
 
 # TODO:
@@ -132,6 +133,7 @@ class MirrorPPO(PPO):
                 if kl_divergence(pdf, old_pdf).mean() > 0.02:
                     print("Max kl reached, stopping optimization early.")
                     break
+        return np.mean(losses, axis=0)
 
     def train(self,
               env_fn,
@@ -154,6 +156,10 @@ class MirrorPPO(PPO):
             policy.obs_mean = torch.Tensor(mean)
             policy.obs_std = torch.Tensor(std)
             policy.train(0)
+        
+        opt_time = np.zeros(n_itr)
+        samp_time = np.zeros(n_itr)
+        eval_time = np.zeros(n_itr)
 
         old_policy = deepcopy(policy)
 
@@ -183,21 +189,37 @@ class MirrorPPO(PPO):
 
             optimizer_start = time.time()
 
-            self.update(policy, old_policy, optimizer, observations, actions, returns, advantages, env_fn) 
+            losses = self.update(policy, old_policy, optimizer, observations, actions, returns, advantages, env_fn) 
            
             print("optimizer time elapsed: {:.2f} s".format(time.time() - optimizer_start))        
 
             evaluate_start = time.time()
             test = self.sample_parallel(env_fn, policy, 800 // self.n_proc, self.max_traj_len, deterministic=True)
-            print("evaluate time elapsed: {:.2f} s".format(time.time() - evaluate_start))
+            eval_time[itr] = time.time() - evaluate_start
+            print("evaluate time elapsed: {:.2f} s".format(eval_time[itr]))
             
             if logger is not None:    
+
+                avg_eval_reward = np.mean(test.ep_returns)
+                avg_batch_reward = np.mean(batch.ep_returns)
+                avg_ep_len = np.mean(batch.ep_lens)
 
                 _, pdf     = policy.evaluate(observations)
                 _, old_pdf = old_policy.evaluate(observations)
 
                 entropy = pdf.entropy().mean().item()
                 kl = kl_divergence(pdf, old_pdf).mean().item()
+
+                grads = np.concatenate([p.grad.data.numpy().flatten() for p in policy.parameters() if p.grad is not None])
+
+                sys.stdout.write("-" * 37 + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Return (test)', avg_eval_reward) + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Return (batch)', avg_batch_reward) + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Mean Eplen', avg_ep_len) + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Mean KL Div', "%8.3g" % kl) + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Mean Entropy', "%8.3g" % entropy) + "\n")
+                sys.stdout.write("-" * 37 + "\n")
+                sys.stdout.flush()
 
                 if type(logger) is Logger:
                     logger.record("Return (test)", np.mean(test.ep_returns))
@@ -208,12 +230,26 @@ class MirrorPPO(PPO):
                     logger.record("Mean Entropy", entropy)
                     logger.dump()
                 elif type(logger) is SummaryWriter:
-                    logger.add_scalar("Data/Return (test)", np.mean(test.ep_returns))
-                    logger.add_scalar("Data/Return (batch)", np.mean(batch.ep_returns))
-                    logger.add_scalar("Data/Mean Eplen", np.mean(batch.ep_lens))
+                    logger.add_scalar("Data/Return (test)", avg_eval_reward, itr)
+                    logger.add_scalar("Data/Return (batch)", avg_batch_reward, itr)
+                    logger.add_scalar("Data/Mean Eplen", avg_ep_len, itr)
 
-                    logger.add_scalar("Misc/Mean KL Div", np.mean(test.ep_returns))
-                    logger.add_scalar("Misc/Mean Entropy", np.mean(test.ep_returns))
+                    logger.add_scalar("Gradients Info/Grad Norm", np.sqrt(np.mean(np.square(grads))), itr)
+                    logger.add_scalar("Gradients Info/Max Grad", np.max(np.abs(grads)), itr)
+                    logger.add_scalar("Gradients Info/Grad Var", np.var(grads), itr)
+
+                    # logger.add_scalar("Action Info/Max action", max_act, itr)
+                    # logger.add_scalar("Action Info/Max mirror action", max_acts[1], itr)
+
+                    logger.add_scalar("Misc/Mean KL Div", kl, itr)
+                    logger.add_scalar("Misc/Mean Entropy", entropy, itr)
+                    logger.add_scalar("Misc/Critic Loss", losses[2], itr)
+                    logger.add_scalar("Misc/Actor Loss", losses[0], itr)
+                    logger.add_scalar("Misc/Mirror Loss", losses[4], itr)
+
+                    logger.add_scalar("Misc/Sample Times", samp_time[itr], itr)
+                    logger.add_scalar("Misc/Optimize Times", opt_time[itr], itr)
+                    logger.add_scalar("Misc/Evaluation Times", eval_time[itr], itr)
                 else:
                     print("No Logger")
 

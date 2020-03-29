@@ -45,6 +45,9 @@ class PPOBuffer:
         self.gamma, self.lam = gamma, lam
 
         self.ptr, self.path_idx = 0, 0
+
+    def __len__(self):
+        return len(self.states)
     
     def store(self, state, action, reward, value):
         """
@@ -119,6 +122,7 @@ class PPO:
 
         self.grad_clip = args['max_grad_norm']
         self.max_return = 0
+        self.limit_cores = 0
 
     @staticmethod
     def add_arguments(parser):
@@ -256,9 +260,13 @@ class PPO:
         import torch.multiprocessing as mp
         from functools import partial, reduce
 
-        worker = partial(self._sample, env_fn, policy, min_steps, max_traj_len, deterministic)
+        real_proc = self.n_proc
+        if self.limit_cores:
+            real_proc = 48 - 16*int(np.log2(60 / env_fn().simrate))
+            print("limit cores active, using {} cores".format(real_proc))
+        worker = partial(self._sample, env_fn, policy, min_steps*self.n_proc // real_proc, max_traj_len, deterministic)
 
-        with mp.Pool(processes=self.n_proc) as pool:
+        with mp.Pool(processes=real_proc) as pool:
             # Call pool of workers, don't apply any arguments
             # TODO: this is a weird use of starmap, maybe Process is more suited?
             result = pool.starmap(worker, [() for _ in range(self.n_proc)])
@@ -276,6 +284,8 @@ class PPO:
             return buf2
 
         memory = reduce(merge, result)
+        if len(memory) > min_steps*self.n_proc * 1.5:
+            self.limit_cores = 1
         return memory
 
     def train(self,
